@@ -6,9 +6,6 @@ dist/
 build/
 *.tsbuildinfo
 
-# Prisma generated client (regenerate with `npm run prisma:generate`)
-apps/api/src/generated/
-
 # Environment / secrets — never commit
 .env
 .env.local

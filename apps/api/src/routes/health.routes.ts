@@ -1,18 +1,23 @@
 import { Router } from 'express';
-import { prisma } from '../config/prisma';
+import mongoose from 'mongoose';
 
 const router = Router();
 
+const DB_STATES: Record<number, string> = {
+  0: 'disconnected',
+  1: 'connected',
+  2: 'connecting',
+  3: 'disconnecting',
+};
+
 /** Liveness + DB readiness probe. */
-router.get('/', async (_req, res) => {
-  let db = 'connected';
-  try {
-    // Cheap round-trip to confirm the Mongo connection is live.
-    await prisma.$runCommandRaw({ ping: 1 });
-  } catch {
-    db = 'disconnected';
-  }
-  res.json({ status: 'ok', uptime: process.uptime(), db });
+router.get('/', (_req, res) => {
+  const dbState = mongoose.connection.readyState;
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    db: DB_STATES[dbState] ?? 'unknown',
+  });
 });
 
 export default router;

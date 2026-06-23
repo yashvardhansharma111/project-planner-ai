@@ -12,10 +12,12 @@ const envSchema = z.object({
     .enum(['development', 'test', 'production'])
     .default('development'),
   API_PORT: z.coerce.number().int().positive().default(4000),
-  // Required — Prisma connects to MongoDB at startup. Use the non-SRV form
-  // (explicit shard hosts + replicaSet) so connection doesn't depend on DNS
-  // SRV lookups, which Prisma's engine can't be redirected to public DNS for.
-  MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+  // Optional for now — when empty, the API runs on the in-memory store.
+  MONGODB_URI: z.string().optional(),
+  // Comma-separated DNS servers for Node's resolver. Needed on networks where
+  // Node can't reach the system DNS for the SRV lookups `mongodb+srv://` does
+  // (the "querySrv ECONNREFUSED" error). Defaults to public resolvers.
+  DNS_SERVERS: z.string().default('8.8.8.8,1.1.1.1'),
   FRONTEND_URL: z.string().url().default('http://localhost:3000'),
 
   // Auth — separate secrets so an access token can never act as a refresh

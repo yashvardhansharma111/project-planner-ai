@@ -3,7 +3,7 @@ An AI-powered platform that converts project requirements into professional PRD 
 
 **Tech Stack**
 -> Frontend: Next.js 14, React 18, Tailwind CSS, Redux Toolkit, Socket.IO Client
--> Backend: Node.js + Express, TypeScript, MongoDB + Prisma (ORM), Socket.IO
+-> Backend: Node.js + Express, TypeScript, MongoDB + Mongoose, Socket.IO
 -> AI: Groq API (llama-3.3-70b-versatile) — free tier
 -> Auth: Custom JWT (short-lived access token + HTTP-only refresh cookie, no OAuth)
 
@@ -15,15 +15,12 @@ An AI-powered platform that converts project requirements into professional PRD 
 
 1. `npm install` (from the repo root — this is an npm-workspaces monorepo).
 2. Copy `.env.example` to `.env` at the repo root and fill in values.
-   - `MONGODB_URI` — for Atlas, prefer the **non-SRV (direct) form** to avoid DNS
-     SRV-lookup failures (`querySrv ECONNREFUSED`). Prisma's engine can't be
-     pointed at a public DNS resolver the way the Node driver can, so SRV URLs
-     are unreliable on some networks:
-     `mongodb://USER:PASS@host1:27017,host2:27017,host3:27017/DB?ssl=true&replicaSet=...&authSource=admin`
+   - `MONGODB_URI` — MongoDB connection string (Atlas `mongodb+srv://...` or local).
+   - `DNS_SERVERS` — comma-separated DNS servers (default `8.8.8.8,1.1.1.1`). The
+     API points Node's resolver at these before connecting, which fixes the
+     `querySrv ECONNREFUSED` SRV-lookup failure seen on some Windows/router setups.
    - `JWT_SECRET` and `JWT_REFRESH_SECRET` — two **different** 64-char hex strings:
      `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
-3. Generate the Prisma client: `npm run prisma:generate --workspace apps/api`
-4. Push the schema (creates indexes, e.g. unique email): `npm run prisma:push --workspace apps/api`
 
 ### Run
 
@@ -32,15 +29,13 @@ An AI-powered platform that converts project requirements into professional PRD 
 | `npm run dev` | Start the API with hot-reload (tsx watch) |
 | `npm run build` / `npm start` | Compile and run the production build |
 | `npm run db:ping --workspace apps/api` | Verify the MongoDB connection |
-| `npm run prisma:generate --workspace apps/api` | Regenerate the Prisma client after schema changes |
-| `npm run prisma:push --workspace apps/api` | Sync the schema to MongoDB |
 | `npm run create:admin --workspace apps/api -- <email> <password> [name]` | Create/promote an admin user |
 
-### Data model (Prisma)
+### Data model (Mongoose)
 
-Schema lives in `apps/api/prisma/schema.prisma`; the generated client is in
-`apps/api/src/generated/prisma`. Models: `User` (roles: client/admin/tech) and
-`Project` (owned by a user, status enum: draft/in_review/approved/locked/archived).
+Models live in `apps/api/src/models`: `User` (roles: client/admin/tech; password
+stored only as a bcrypt hash) and `Project` (owned by a user via `ownerId`,
+status enum: draft/in_review/approved/locked/archived).
 
 ### API endpoints
 

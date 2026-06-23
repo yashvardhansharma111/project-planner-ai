@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
+import { Error as MongooseError } from 'mongoose';
 import { ZodError } from 'zod';
 import { env } from '../config/env';
-import { Prisma } from '../generated/prisma';
 
 /** Lightweight HTTP error carrying an explicit status code. */
 export class ApiError extends Error {
@@ -45,26 +45,27 @@ export function errorHandler(
     return;
   }
 
-  // Known Prisma request errors (unique violation, not-found, bad ObjectId, …).
-  if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    switch (err.code) {
-      case 'P2002': // unique constraint failed
-        res.status(409).json({ error: 'A record with that value already exists' });
-        return;
-      case 'P2025': // record required but not found
-        res.status(404).json({ error: 'Resource not found' });
-        return;
-      case 'P2023': // malformed ObjectId in the URL
-        res.status(404).json({ error: 'Resource not found' });
-        return;
-      default:
-        break;
-    }
+  // Malformed ObjectId in the URL (e.g. GET /api/projects/not-a-real-id).
+  if (err instanceof MongooseError.CastError) {
+    res.status(404).json({ error: 'Resource not found' });
+    return;
   }
 
-  // Invalid data shape reaching Prisma (e.g. a bad enum value on a write).
-  if (err instanceof Prisma.PrismaClientValidationError) {
-    res.status(400).json({ error: 'Invalid request data' });
+  // Mongoose schema validation (e.g. value outside an enum on direct writes).
+  if (err instanceof MongooseError.ValidationError) {
+    res.status(400).json({
+      error: 'Validation Error',
+      details: Object.values(err.errors).map((e) => ({
+        field: e.path,
+        message: e.message,
+      })),
+    });
+    return;
+  }
+
+  // Duplicate key (e.g. registering an email that already exists, race-safe).
+  if (typeof err === 'object' && err !== null && (err as { code?: number }).code === 11000) {
+    res.status(409).json({ error: 'A record with that value already exists' });
     return;
   }
 

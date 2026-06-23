@@ -1,5 +1,8 @@
 import bcrypt from 'bcryptjs';
-import { prisma } from '../config/prisma';
+import dns from 'node:dns';
+import mongoose from 'mongoose';
+import { env } from '../config/env';
+import { UserModel } from '../models/User';
 
 const BCRYPT_ROUNDS = 12;
 
@@ -24,25 +27,39 @@ async function main(): Promise<void> {
     console.error('❌ Password must be at least 8 characters.');
     process.exit(1);
   }
+  if (!env.MONGODB_URI) {
+    console.error('❌ MONGODB_URI is not set — cannot create an admin.');
+    process.exit(1);
+  }
 
+  // Same DNS workaround the API uses for Atlas SRV lookups.
+  if (env.DNS_SERVERS) {
+    dns.setServers(env.DNS_SERVERS.split(',').map((s) => s.trim()).filter(Boolean));
+  }
+
+  await mongoose.connect(env.MONGODB_URI);
   const normalizedEmail = email.toLowerCase().trim();
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
-  // Upsert: promote + reset password if the email exists, else create fresh.
-  const user = await prisma.user.upsert({
-    where: { email: normalizedEmail },
-    update: { role: 'admin', passwordHash, isActive: true },
-    create: {
+  const existing = await UserModel.findOne({ email: normalizedEmail });
+  if (existing) {
+    existing.role = 'admin';
+    existing.passwordHash = passwordHash;
+    existing.isActive = true;
+    await existing.save();
+    console.log(`✅ Promoted existing user to admin: ${normalizedEmail}`);
+  } else {
+    await UserModel.create({
       fullName,
       email: normalizedEmail,
       passwordHash,
       role: 'admin',
       isActive: true,
-    },
-  });
+    });
+    console.log(`✅ Created admin user: ${normalizedEmail}`);
+  }
 
-  console.log(`✅ Admin ready: ${user.email} (id: ${user.id})`);
-  await prisma.$disconnect();
+  await mongoose.disconnect();
   process.exit(0);
 }
 
