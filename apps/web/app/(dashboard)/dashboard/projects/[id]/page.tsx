@@ -2,13 +2,16 @@
 
 import {
   ArrowLeft,
+  CalendarClock,
   Check,
   Download,
   Eye,
   Lock,
   Pencil,
+  Plus,
   Sparkles,
   Trash2,
+  X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -57,6 +60,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -90,17 +94,25 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
     }
   }
 
-  async function generate() {
+  async function generate(features?: string[]) {
+    setShowChecklist(false);
     setGenerating(true);
     setError(null);
     try {
-      await apiFetch(`/ai/generate/${params.id}`, { method: 'POST' });
+      await apiFetch(`/ai/generate/${params.id}`, {
+        method: 'POST',
+        body: JSON.stringify({ features: features ?? [] }),
+      });
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
       setGenerating(false);
     }
+  }
+
+  function updateDeadline(p: Project) {
+    setProject(p);
   }
 
   async function approve(docId: string) {
@@ -201,7 +213,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                 </span>
               ) : (
                 <button
-                  onClick={generate}
+                  onClick={() => setShowChecklist(true)}
                   disabled={generating}
                   className="text-sm text-slate-500 hover:text-slate-900 disabled:opacity-50"
                 >
@@ -210,24 +222,41 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               ))}
           </div>
 
+          {showChecklist && (
+            <ChecklistPanel
+              projectId={project.id}
+              onCancel={() => setShowChecklist(false)}
+              onGenerate={generate}
+            />
+          )}
+
           {docs.length === 0 ? (
-            <div className="card mt-3 grid place-items-center gap-3 py-12 text-center">
-              {project.status === 'locked' ? (
-                <p className="inline-flex items-center gap-1.5 text-sm text-slate-500">
-                  <Lock className="h-4 w-4" /> Project is finalised — unlock it to generate.
-                </p>
-              ) : (
-                <>
-                  <p className="text-sm text-slate-500">No documents yet.</p>
-                  <button onClick={generate} disabled={generating} className="btn-primary px-4 py-2 text-sm">
-                    <Sparkles className="h-4 w-4" /> {generating ? 'Generating…' : 'Generate PRD/TRD'}
-                  </button>
-                </>
-              )}
-            </div>
+            !showChecklist && (
+              <div className="card mt-3 grid place-items-center gap-3 py-12 text-center">
+                {project.status === 'locked' ? (
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-500">
+                    <Lock className="h-4 w-4" /> Project is finalised — unlock it to generate.
+                  </p>
+                ) : generating ? (
+                  <p className="inline-flex items-center gap-1.5 text-sm text-slate-500">
+                    <Sparkles className="h-4 w-4 animate-pulse" /> Generating…
+                  </p>
+                ) : (
+                  <>
+                    <p className="text-sm text-slate-500">No documents yet.</p>
+                    <button onClick={() => setShowChecklist(true)} className="btn-primary px-4 py-2 text-sm">
+                      <Sparkles className="h-4 w-4" /> Generate PRD/TRD
+                    </button>
+                  </>
+                )}
+              </div>
+            )
           ) : (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              {docs.map((d) => (
+            <>
+              {/* Set a deadline before approving the documents. */}
+              <DeadlineSetter project={project} onSaved={updateDeadline} />
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {docs.map((d) => (
                 <div key={d.id} className="card flex items-center justify-between p-4">
                   <div>
                     <div className="font-semibold uppercase text-slate-900">{d.docType}</div>
@@ -265,11 +294,188 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
                   </div>
                 </div>
               ))}
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
     </main>
+  );
+}
+
+/** Pre-generation checklist: AI suggests features, the client edits, then generates. */
+function ChecklistPanel({
+  projectId,
+  onCancel,
+  onGenerate,
+}: {
+  projectId: string;
+  onCancel: () => void;
+  onGenerate: (features: string[]) => void;
+}) {
+  const [items, setItems] = useState<{ text: string; checked: boolean }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [custom, setCustom] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { features } = await apiFetch<{ features: string[] }>(`/ai/checklist/${projectId}`, {
+          method: 'POST',
+        });
+        if (alive) setItems(features.map((text) => ({ text, checked: true })));
+      } catch (e) {
+        if (alive) setErr(e instanceof Error ? e.message : 'Could not suggest features');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [projectId]);
+
+  function addCustom() {
+    const text = custom.trim();
+    if (!text) return;
+    setItems((prev) => [...prev, { text, checked: true }]);
+    setCustom('');
+  }
+
+  const selected = items.filter((i) => i.checked).map((i) => i.text);
+
+  return (
+    <div className="card animate-fade-up mt-3 p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-semibold text-slate-900">Review the feature checklist</h3>
+          <p className="mt-0.5 text-sm text-slate-500">
+            Tick the features to include, or add your own — the PRD/TRD will cover these.
+          </p>
+        </div>
+        <button onClick={onCancel} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100" aria-label="Close">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {err && <p className="mt-3 text-sm text-red-600">{err}</p>}
+
+      {loading ? (
+        <p className="mt-4 inline-flex items-center gap-2 text-sm text-slate-500">
+          <Sparkles className="h-4 w-4 animate-pulse" /> Suggesting features…
+        </p>
+      ) : (
+        <>
+          <ul className="mt-4 space-y-2">
+            {items.map((it, idx) => (
+              <li key={idx} className="flex items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={it.checked}
+                  onChange={() =>
+                    setItems((prev) =>
+                      prev.map((p, i) => (i === idx ? { ...p, checked: !p.checked } : p)),
+                    )
+                  }
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className={`text-sm ${it.checked ? 'text-slate-800' : 'text-slate-400 line-through'}`}>
+                  {it.text}
+                </span>
+              </li>
+            ))}
+            {items.length === 0 && (
+              <li className="text-sm text-slate-500">No suggestions — add features below.</li>
+            )}
+          </ul>
+
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              className="input"
+              placeholder="Add a feature…"
+              value={custom}
+              onChange={(e) => setCustom(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addCustom();
+                }
+              }}
+            />
+            <button onClick={addCustom} className="btn-ghost shrink-0 px-3 py-2 text-sm">
+              <Plus className="h-4 w-4" /> Add
+            </button>
+          </div>
+
+          <div className="mt-5 flex items-center gap-2">
+            <button onClick={() => onGenerate(selected)} className="btn-primary px-4 py-2 text-sm">
+              <Sparkles className="h-4 w-4" /> Generate with {selected.length} feature
+              {selected.length === 1 ? '' : 's'}
+            </button>
+            <button onClick={onCancel} className="btn-ghost px-4 py-2 text-sm">
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Lets the client set/update the project deadline before approving documents. */
+function DeadlineSetter({
+  project,
+  onSaved,
+}: {
+  project: Project;
+  onSaved: (p: Project) => void;
+}) {
+  const [value, setValue] = useState(
+    project.deadline ? new Date(project.deadline).toISOString().slice(0, 10) : '',
+  );
+  const [saving, setSaving] = useState(false);
+  const [ok, setOk] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    setOk(false);
+    try {
+      const { project: updated } = await apiFetch<{ project: Project }>(`/projects/${project.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ deadline: value ? value : null }),
+      });
+      onSaved(updated);
+      setOk(true);
+    } catch {
+      /* surfaced via parent on next load */
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card mt-3 flex flex-wrap items-end gap-3 p-4">
+      <div className="flex-1">
+        <label className="label flex items-center gap-1.5">
+          <CalendarClock className="h-3.5 w-3.5 text-slate-400" /> Project deadline
+        </label>
+        <input
+          type="date"
+          className="input sm:max-w-xs"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setOk(false);
+          }}
+        />
+        <p className="mt-1 text-xs text-slate-400">Set a deadline before approving the documents.</p>
+      </div>
+      <button onClick={save} disabled={saving} className="btn-primary px-4 py-2 text-sm">
+        <Check className="h-4 w-4" /> {saving ? 'Saving…' : ok ? 'Saved' : 'Save deadline'}
+      </button>
+    </div>
   );
 }
 

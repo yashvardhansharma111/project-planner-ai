@@ -90,6 +90,54 @@ export async function apiFetch<T>(
   return data as T;
 }
 
+/**
+ * POST a request and stream the plain-text response body token-by-token.
+ * Calls `onToken` for each chunk. Falls back to the caller on non-OK responses
+ * (throws) and transparently refreshes an expired access token once.
+ */
+export async function apiStream(
+  path: string,
+  body: unknown,
+  onToken: (chunk: string) => void,
+  _retried = false,
+): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 401 && !_retried) {
+    if (await tryRefresh()) return apiStream(path, body, onToken, true);
+    forceLogout();
+    throw new Error('Session expired — please sign in again');
+  }
+
+  if (!res.ok || !res.body) {
+    let msg = `Request failed (${res.status})`;
+    try {
+      const j = JSON.parse(await res.text());
+      msg = j.error || j.message || msg;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new Error(msg);
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    onToken(decoder.decode(value, { stream: true }));
+  }
+}
+
 /** Fetch a file (with auth + refresh-retry) and trigger a browser download. */
 export async function apiDownload(path: string, filename: string, _retried = false): Promise<void> {
   const token = getAccessToken();

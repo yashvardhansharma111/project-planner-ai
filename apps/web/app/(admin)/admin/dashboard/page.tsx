@@ -34,10 +34,17 @@ interface Stats {
 
 const PIE_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#94a3b8'];
 
-function money(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${Math.round(n / 1000)}k`;
-  return `$${n}`;
+// Budgets are stored in USD; show the estimated pipeline in INR (Lakh/Crore).
+const USD_TO_INR = 83;
+const inrFmt = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+});
+
+function money(usd: number): string {
+  return inrFmt.format(usd * USD_TO_INR);
 }
 
 export default function AdminDashboardPage() {
@@ -93,7 +100,7 @@ export default function AdminDashboardPage() {
           loading={loading}
           icon={DollarSign}
           tint="text-amber-600 bg-amber-50"
-          hint="estimated from project budgets"
+          hint="estimated from project budgets (INR)"
         />
       </div>
 

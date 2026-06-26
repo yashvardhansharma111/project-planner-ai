@@ -11,6 +11,7 @@ import authRoutes from './routes/auth.routes';
 import documentRoutes from './routes/documents.routes';
 import healthRoutes from './routes/health.routes';
 import projectRoutes from './routes/projects.routes';
+import questionRoutes from './routes/questions.routes';
 
 /**
  * Builds the Express application (no listener attached).
@@ -58,6 +59,7 @@ export function createApp(): Express {
   app.use('/api/projects', projectRoutes);
   app.use('/api/documents', documentRoutes);
   app.use('/api/ai', aiRoutes);
+  app.use('/api/questions', questionRoutes);
   app.use('/api/admin', adminRoutes);
 
   // 404 + error handling — must be registered last.

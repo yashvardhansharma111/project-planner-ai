@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { AiDocumentModel } from '../models/AiDocument';
 import { ProjectModel } from '../models/Project';
+import { QuestionModel } from '../models/Question';
 import { UserModel } from '../models/User';
 
 const BCRYPT_ROUNDS = 12;
@@ -141,12 +142,87 @@ _Generated demo document — replace once AI generation is live._
 `;
 }
 
+// ── Default questionnaire bank (admin-editable after seeding) ────────────────
+interface SeedQuestion {
+  industry: string;
+  key: string;
+  label: string;
+  type: 'text' | 'textarea' | 'select' | 'multiselect';
+  options?: string[];
+  placeholder?: string;
+  required?: boolean;
+  order: number;
+  dependsOnKey?: string;
+  dependsOnValue?: string;
+}
+
+const SEED_QUESTIONS: SeedQuestion[] = [
+  // Fintech
+  { industry: 'Fintech', key: 'product', label: 'What financial product or service?', type: 'text', placeholder: 'e.g. digital wallet, lending, payments', required: true, order: 1 },
+  { industry: 'Fintech', key: 'compliance', label: 'Key compliance needs', type: 'select', options: ['KYC/AML', 'PCI-DSS', 'PSD2 / Open Banking', 'Not sure'], order: 2 },
+  { industry: 'Fintech', key: 'users', label: 'Who are the primary users?', type: 'text', placeholder: 'e.g. consumers, SMBs, agents', order: 3 },
+  { industry: 'Fintech', key: 'integrations', label: 'Payment / banking integrations needed', type: 'text', placeholder: 'e.g. UPI, Stripe, card networks', order: 4 },
+
+  // Healthcare
+  { industry: 'Healthcare', key: 'solution', label: 'Type of healthcare solution', type: 'select', options: ['Telehealth', 'Patient records (EHR)', 'Appointment booking', 'Wellness/fitness', 'Other'], required: true, order: 1 },
+  { industry: 'Healthcare', key: 'audience', label: 'Patient-facing or provider-facing?', type: 'select', options: ['Patient', 'Provider', 'Both'], order: 2 },
+  { industry: 'Healthcare', key: 'compliance', label: 'Compliance requirements', type: 'text', placeholder: 'e.g. HIPAA, GDPR, India DPDP', order: 3 },
+  { industry: 'Healthcare', key: 'features', label: 'Must-have features', type: 'multiselect', options: ['Video consults', 'E-prescriptions', 'Reminders', 'Patient records', 'Payments', 'Lab integrations'], order: 4 },
+
+  // E-commerce / Retail
+  { industry: 'E-commerce / Retail', key: 'model', label: 'Business model', type: 'select', options: ['D2C brand', 'Marketplace', 'B2B wholesale', 'Subscription'], required: true, order: 1 },
+  { industry: 'E-commerce / Retail', key: 'commission', label: 'Marketplace commission & payout model', type: 'text', placeholder: 'e.g. 10% per order, weekly seller payouts', order: 2, dependsOnKey: 'model', dependsOnValue: 'Marketplace' },
+  { industry: 'E-commerce / Retail', key: 'catalog', label: 'What are you selling?', type: 'text', placeholder: 'e.g. apparel, electronics, groceries', order: 3 },
+  { industry: 'E-commerce / Retail', key: 'payments', label: 'Payment methods', type: 'multiselect', options: ['Cards', 'UPI', 'Wallets', 'COD', 'Net banking', 'BNPL'], order: 4 },
+  { industry: 'E-commerce / Retail', key: 'features', label: 'Key features', type: 'textarea', placeholder: 'e.g. recommendations, reviews, loyalty', order: 5 },
+
+  // Education
+  { industry: 'Education', key: 'type', label: 'Type of platform', type: 'select', options: ['LMS / courses', 'Live tutoring', 'Test prep', 'School admin', 'Other'], required: true, order: 1 },
+  { industry: 'Education', key: 'audience', label: 'Target learners', type: 'text', placeholder: 'e.g. K-12, university, professionals', order: 2 },
+  { industry: 'Education', key: 'features', label: 'Core features', type: 'textarea', placeholder: 'e.g. video lessons, quizzes, certificates', order: 3 },
+
+  // SaaS / Productivity
+  { industry: 'SaaS / Productivity', key: 'problem', label: 'What problem does it solve?', type: 'textarea', placeholder: 'Describe the core workflow you improve', required: true, order: 1 },
+  { industry: 'SaaS / Productivity', key: 'users', label: 'Who is it for?', type: 'text', placeholder: 'e.g. marketing teams, developers, HR', order: 2 },
+  { industry: 'SaaS / Productivity', key: 'features', label: 'Key features', type: 'textarea', placeholder: 'e.g. dashboards, automations, integrations', order: 3 },
+
+  // Other
+  { industry: 'Other', key: 'idea', label: 'Describe your project idea', type: 'textarea', placeholder: 'What are you building and for whom?', required: true, order: 1 },
+  { industry: 'Other', key: 'features', label: 'Key features', type: 'textarea', placeholder: 'List the must-have capabilities', order: 2 },
+];
+
+/** Idempotently seed the default questionnaire bank (upsert by industry+key). */
+async function seedQuestions(): Promise<void> {
+  for (const q of SEED_QUESTIONS) {
+    await QuestionModel.findOneAndUpdate(
+      { industry: q.industry, key: q.key },
+      {
+        $set: {
+          label: q.label,
+          type: q.type,
+          options: q.options ?? [],
+          placeholder: q.placeholder ?? '',
+          required: q.required ?? false,
+          order: q.order,
+          dependsOnKey: q.dependsOnKey ?? null,
+          dependsOnValue: q.dependsOnValue ?? null,
+          isActive: true,
+        },
+      },
+      { upsert: true, new: true },
+    );
+  }
+}
+
 /**
- * Idempotently seeds demo users + projects + PRD/TRD documents. Safe to run on
- * every dev startup: users upserted by email, projects by (ownerId, name),
- * documents by (projectId, docType) — so nothing duplicates. Dev only.
+ * Idempotently seeds demo users + projects + PRD/TRD documents + questionnaire
+ * bank. Safe to run on every dev startup: users upserted by email, projects by
+ * (ownerId, name), documents by (projectId, docType), questions by
+ * (industry, key) — so nothing duplicates. Dev only.
  */
 export async function seedDemoData(): Promise<void> {
+  await seedQuestions();
+
   const idByEmail = new Map<string, string>();
 
   for (const u of SEED_USERS) {

@@ -16,6 +16,7 @@ export interface User {
   email: string;
   role: 'client' | 'admin' | 'tech';
   isActive: boolean;
+  theme?: 'light' | 'dark';
 }
 
 interface AuthResponse {

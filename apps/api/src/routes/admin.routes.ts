@@ -11,6 +11,14 @@ import {
   updateUserStatus,
   updateUserStatusSchema,
 } from '../controllers/admin.controller';
+import {
+  createQuestion,
+  deleteQuestion,
+  listQuestions,
+  questionBodySchema,
+  updateQuestion,
+  updateQuestionSchema,
+} from '../controllers/questions.controller';
 import { requireAuth, requireRole } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validate.middleware';
 import { asyncHandler } from '../utils/asyncHandler';
@@ -37,5 +45,11 @@ router.patch(
   validateBody(updateStatusSchema),
   asyncHandler(updateProjectStatus),
 );
+
+// Questionnaire bank management.
+router.get('/questions', asyncHandler(listQuestions));
+router.post('/questions', validateBody(questionBodySchema), asyncHandler(createQuestion));
+router.patch('/questions/:id', validateBody(updateQuestionSchema), asyncHandler(updateQuestion));
+router.delete('/questions/:id', asyncHandler(deleteQuestion));
 
 export default router;

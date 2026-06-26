@@ -111,6 +111,20 @@ export async function updateMe(req: Request, res: Response): Promise<void> {
   res.json({ user: user.toJSON() });
 }
 
+export const updateThemeSchema = z.object({ theme: z.enum(['light', 'dark']) });
+
+/** PATCH /api/auth/me/theme — persist the user's light/dark preference. */
+export async function updateTheme(req: Request, res: Response): Promise<void> {
+  const { theme } = req.body as z.infer<typeof updateThemeSchema>;
+  const user = await UserModel.findByIdAndUpdate(
+    req.user!.sub,
+    { theme },
+    { new: true, runValidators: true },
+  );
+  if (!user) throw new ApiError(404, 'User not found');
+  res.json({ user: user.toJSON() });
+}
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8).max(128),

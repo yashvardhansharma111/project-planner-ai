@@ -182,7 +182,6 @@ interface DocMeta {
 
 function ProjectCard({ project }: { project: Project }) {
   const [docs, setDocs] = useState<DocMeta[]>([]);
-  const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -200,19 +199,6 @@ function ProjectCard({ project }: { project: Project }) {
   }, [loadDocs]);
 
   const slug = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-  async function generate() {
-    setGenerating(true);
-    setError(null);
-    try {
-      await apiFetch(`/ai/generate/${project.id}`, { method: 'POST' });
-      await loadDocs();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed');
-    } finally {
-      setGenerating(false);
-    }
-  }
 
   async function download(docType: 'prd' | 'trd') {
     setDownloading(docType);
@@ -270,11 +256,7 @@ function ProjectCard({ project }: { project: Project }) {
         <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <span className="text-xs text-slate-500">Created {created}</span>
 
-          {generating ? (
-            <span className="inline-flex items-center gap-2 text-xs text-slate-500">
-              <Spinner /> Generating…
-            </span>
-          ) : hasDocs ? (
+          {hasDocs ? (
             <div className="flex items-center gap-1.5">
               <Link
                 href={`/documents/${project.id}`}
@@ -300,19 +282,19 @@ function ProjectCard({ project }: { project: Project }) {
               <Lock className="h-3.5 w-3.5" /> Finalised
             </span>
           ) : (
-            <button onClick={generate} className="btn-primary px-3 py-1 text-xs">
+            <Link href={`/dashboard/projects/${project.id}`} className="btn-primary px-3 py-1 text-xs">
               <Sparkles className="h-3.5 w-3.5" /> Generate
-            </button>
+            </Link>
           )}
         </div>
 
-        {hasDocs && !generating && !finalised && (
-          <button
-            onClick={generate}
+        {hasDocs && !finalised && (
+          <Link
+            href={`/dashboard/projects/${project.id}`}
             className="mt-2 inline-flex items-center gap-1 text-xs text-slate-400 transition-colors hover:text-slate-600"
           >
             <RefreshCw className="h-3 w-3" /> Regenerate
-          </button>
+          </Link>
         )}
         {hasDocs && finalised && (
           <p className="mt-2 inline-flex items-center gap-1 text-xs text-slate-400">
@@ -322,11 +304,5 @@ function ProjectCard({ project }: { project: Project }) {
         {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       </div>
     </div>
-  );
-}
-
-function Spinner() {
-  return (
-    <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-500" />
   );
 }

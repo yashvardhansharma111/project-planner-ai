@@ -1,9 +1,11 @@
 'use client';
 
 import {
+  Code2,
   FileText,
   FolderKanban,
   LayoutDashboard,
+  ListChecks,
   Menu,
   Plus,
   Settings,
@@ -17,6 +19,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { Brand } from './brand';
 import { ProfileMenu } from './profile-menu';
+import { ThemeToggle } from './theme-toggle';
 
 interface NavItem {
   href: string;
@@ -26,8 +29,10 @@ interface NavItem {
 
 const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/clients', label: 'Clients', icon: Users },
+  { href: '/admin/developers', label: 'Developers', icon: Code2 },
   { href: '/admin/projects', label: 'Projects', icon: FolderKanban },
+  { href: '/admin/questions', label: 'Questionnaire', icon: ListChecks },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -61,24 +66,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen lg:flex">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-30 bg-slate-900/30 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      <Sidebar
-        collapsed={collapsed}
-        mobileOpen={mobileOpen}
-        onCloseMobile={() => setMobileOpen(false)}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* Top bar — hamburger (left) always visible, profile (right) */}
-        <header className="no-print sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur-md">
+    <div className="flex min-h-screen flex-col">
+      {/* Top bar — full width, sits above the sidebar.
+          hamburger + brand (left), theme toggle + profile (right) */}
+      <header className="no-print sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur-md">
+        <div className="flex items-center gap-2">
           <button
             onClick={toggle}
             aria-label="Toggle menu"
@@ -86,10 +78,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
+          <Brand />
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
           <ProfileMenu />
-        </header>
+        </div>
+      </header>
 
-        <div className="flex-1">{children}</div>
+      {/* Body — sidebar (starts below the top bar) + page content */}
+      <div className="flex flex-1">
+        {/* Mobile overlay, starts under the top bar */}
+        {mobileOpen && (
+          <div
+            className="fixed inset-x-0 bottom-0 top-14 z-30 bg-slate-900/30 lg:hidden"
+            onClick={() => setMobileOpen(false)}
+          />
+        )}
+
+        <Sidebar
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          onCloseMobile={() => setMobileOpen(false)}
+        />
+
+        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </div>
   );
@@ -110,33 +123,22 @@ function Sidebar({
 
   return (
     <aside
-      className={`no-print fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:static lg:translate-x-0 ${
+      className={`no-print fixed bottom-0 left-0 top-14 z-40 flex w-64 flex-col border-r border-slate-200 bg-white transition-all duration-200 lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:translate-x-0 ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       } ${collapsed ? 'lg:w-20' : 'lg:w-64'}`}
     >
-      {/* Header / brand */}
-      <div className="flex h-16 items-center justify-between px-4">
-        <div className={collapsed ? 'lg:hidden' : ''}>
-          <Brand />
-        </div>
-        {collapsed && (
-          <Link
-            href="/"
-            className="hidden h-8 w-8 place-items-center rounded-lg bg-indigo-600 text-sm font-bold text-white lg:mx-auto lg:grid"
-          >
-            R
-          </Link>
-        )}
+      {/* Mobile-only close affordance (drawer); the brand lives in the top bar. */}
+      <div className="flex h-12 items-center justify-end px-3 lg:hidden">
         <button
           onClick={onCloseMobile}
-          className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 lg:hidden"
+          className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100"
           aria-label="Close menu"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-2">
+      <nav className="flex-1 space-y-1 px-3 py-2 lg:pt-4">
         {links.map((l) => {
           // "/dashboard" should only light up for itself + project detail pages,
           // not for sibling routes like /dashboard/documents or /dashboard/new.

@@ -22,6 +22,8 @@ const userSchema = new Schema(
       default: 'client',
     },
     isActive: { type: Boolean, default: true },
+    // UI preference. Dark mode isn't rendered yet, but the choice is persisted.
+    theme: { type: String, enum: ['light', 'dark'], default: 'light' },
   },
   {
     timestamps: true, // adds createdAt / updatedAt
