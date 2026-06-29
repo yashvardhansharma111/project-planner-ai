@@ -29,6 +29,7 @@ interface NavItem {
 
 const ADMIN_LINKS: NavItem[] = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard/new/chat', label: 'New Project', icon: Plus },
   { href: '/admin/clients', label: 'Clients', icon: Users },
   { href: '/admin/developers', label: 'Developers', icon: Code2 },
   { href: '/admin/projects', label: 'Projects', icon: FolderKanban },
@@ -37,8 +38,8 @@ const ADMIN_LINKS: NavItem[] = [
 ];
 
 const CLIENT_LINKS: NavItem[] = [
+  { href: '/dashboard/new/chat', label: 'New Project', icon: Plus },
   { href: '/dashboard', label: 'My Projects', icon: FolderKanban },
-  { href: '/dashboard/new', label: 'New Project', icon: Plus },
   { href: '/dashboard/documents', label: 'Documents', icon: FileText },
   { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
@@ -152,7 +153,9 @@ function Sidebar({
           const active =
             l.href === '/dashboard'
               ? pathname === '/dashboard' || pathname.startsWith('/dashboard/projects')
-              : pathname === l.href || pathname.startsWith(l.href + '/');
+              : l.href === '/dashboard/new/chat'
+                ? pathname.startsWith('/dashboard/new') // any intake method
+                : pathname === l.href || pathname.startsWith(l.href + '/');
           const Icon = l.icon;
           return (
             <Link

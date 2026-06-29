@@ -1,4 +1,6 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Same-origin by default: the API now lives in this Next app under /api.
+// (Set NEXT_PUBLIC_API_URL only if you point at a separate API host.)
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 // Access token lives in memory + localStorage (the refresh token is an
 // HTTP-only cookie the browser sends automatically with credentials: 'include').

@@ -39,18 +39,18 @@ export default function ManualProjectPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl px-6 py-12">
+    <main className="px-6 py-12 lg:px-8">
       <Link
-        href="/dashboard/new"
+        href="/dashboard/new/chat"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
       >
-        <ArrowLeft className="h-4 w-4" /> Back
+        <ArrowLeft className="h-4 w-4" /> Back to chat
       </Link>
 
       <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">Quick create</h1>
       <p className="mt-1 text-slate-600">The starting point for your roadmap.</p>
 
-      <form onSubmit={handleSubmit} className="card animate-fade-up mt-8 p-6">
+      <form onSubmit={handleSubmit} className="card animate-fade-up mt-8 max-w-3xl p-6">
         <div className="space-y-4">
           <div>
             <label className="label" htmlFor="name">
@@ -127,7 +127,7 @@ export default function ManualProjectPage() {
             <button type="submit" className="btn-primary px-4 py-2" disabled={submitting}>
               <Plus className="h-4 w-4" /> {submitting ? 'Creating…' : 'Create project'}
             </button>
-            <Link href="/dashboard/new" className="btn-ghost px-4 py-2">
+            <Link href="/dashboard/new/chat" className="btn-ghost px-4 py-2">
               Cancel
             </Link>
           </div>

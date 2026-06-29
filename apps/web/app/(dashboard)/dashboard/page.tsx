@@ -2,6 +2,7 @@
 
 import {
   CalendarClock,
+  ChevronDown,
   Download,
   Eye,
   FolderOpen,
@@ -112,34 +113,40 @@ export default function DashboardPage() {
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="input pl-9"
+              className="input pl-10"
               placeholder="Search projects…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
-          <select
-            className="input sm:w-44"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          >
-            <option value="all">All statuses</option>
-            {(['draft', 'in_review', 'approved', 'locked', 'archived'] as const).map((s) => (
-              <option key={s} value={s}>
-                {s.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
-          <select
-            className="input sm:w-40"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-          >
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="deadline">By deadline</option>
-            <option value="name">By name</option>
-          </select>
+          <div className="relative w-full sm:w-auto">
+            <select
+              className="input w-full appearance-none pr-9 sm:w-auto"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            >
+              <option value="all">All statuses</option>
+              {(['draft', 'in_review', 'approved', 'locked', 'archived'] as const).map((s) => (
+                <option key={s} value={s}>
+                  {s.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
+          <div className="relative w-full sm:w-auto">
+            <select
+              className="input w-full appearance-none pr-9 sm:w-auto"
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortKey)}
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="deadline">By deadline</option>
+              <option value="name">By name</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          </div>
         </div>
       )}
 

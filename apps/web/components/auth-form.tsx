@@ -1,16 +1,19 @@
 'use client';
 
+import { GoogleLogin, GoogleOAuthProvider } from '@react-oauth/google';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { homePathForRole, useAuth } from '@/lib/auth';
 import { Brand } from './brand';
 
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+
 /** Shared login / register form. The two (auth) pages are thin wrappers. */
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const isLogin = mode === 'login';
   const router = useRouter();
-  const { user, loading, login, register } = useAuth();
+  const { user, loading, login, register, loginWithGoogle } = useAuth();
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,6 +38,16 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGoogle(idToken: string) {
+    setError(null);
+    try {
+      await loginWithGoogle(idToken);
+      // Redirect handled by the effect above once `user` is set.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed');
     }
   }
 
@@ -111,6 +124,30 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
               {submitting ? 'Please wait…' : isLogin ? 'Sign in' : 'Create account'}
             </button>
           </form>
+
+          {/* Google sign-in (only when a client ID is configured) */}
+          {GOOGLE_CLIENT_ID && (
+            <>
+              <div className="my-5 flex items-center gap-3">
+                <span className="h-px flex-1 bg-slate-200" />
+                <span className="text-xs text-slate-400">or</span>
+                <span className="h-px flex-1 bg-slate-200" />
+              </div>
+              <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={(cr) => {
+                      if (cr.credential) void handleGoogle(cr.credential);
+                    }}
+                    onError={() => setError('Google sign-in failed')}
+                    text={isLogin ? 'signin_with' : 'signup_with'}
+                    shape="rectangular"
+                    width="320"
+                  />
+                </div>
+              </GoogleOAuthProvider>
+            </>
+          )}
         </div>
 
         <p className="mt-6 text-center text-sm text-slate-500">

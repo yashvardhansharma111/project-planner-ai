@@ -80,7 +80,7 @@ export default function AdminProjectsPage() {
   const visible = filter === 'all' ? projects : projects.filter((p) => p.status === filter);
 
   return (
-    <main className="mx-auto max-w-6xl animate-fade-up px-6 py-10">
+    <main className="animate-fade-up px-6 py-10 lg:px-8">
       <h1 className="text-3xl font-bold tracking-tight text-slate-900">Projects</h1>
       <p className="mt-1 text-slate-600">All projects across every client. Drive their lifecycle.</p>
 

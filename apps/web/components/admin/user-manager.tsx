@@ -1,5 +1,6 @@
 'use client';
 
+import { Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -87,10 +88,29 @@ export function UserManager({
     }
   }
 
+  async function remove(u: AdminUser) {
+    if (
+      !confirm(
+        `Delete ${u.fullName}? This permanently removes their account and all their projects and documents.`,
+      )
+    )
+      return;
+    setBusyId(u.id);
+    setError(null);
+    try {
+      await apiFetch(`/admin/users/${u.id}`, { method: 'DELETE' });
+      setUsers((prev) => prev.filter((x) => x.id !== u.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   const visible = users.filter((u) => u.role === role);
 
   return (
-    <main className="mx-auto max-w-6xl animate-fade-up px-6 py-10">
+    <main className="animate-fade-up px-6 py-10 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">
@@ -155,17 +175,27 @@ export function UserManager({
                       )}
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button
-                        onClick={() => toggleStatus(u)}
-                        disabled={isSelf || busy}
-                        className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                          u.isActive
-                            ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
-                            : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {u.isActive ? 'Suspend' : 'Reactivate'}
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => toggleStatus(u)}
+                          disabled={isSelf || busy}
+                          className={`rounded-md border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                            u.isActive
+                              ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'
+                              : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          }`}
+                        >
+                          {u.isActive ? 'Suspend' : 'Reactivate'}
+                        </button>
+                        <button
+                          onClick={() => remove(u)}
+                          disabled={isSelf || busy}
+                          title={isSelf ? "You can't delete yourself" : 'Delete user'}
+                          className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" /> Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

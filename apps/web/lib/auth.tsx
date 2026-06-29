@@ -29,6 +29,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
 }
@@ -90,6 +91,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const data = await apiFetch<AuthResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
+    setAccessToken(data.accessToken);
+    setUser(data.user);
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiFetch('/auth/logout', { method: 'POST' });
@@ -103,7 +113,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updateUser = useCallback((u: User) => setUser(u), []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, loginWithGoogle, logout, updateUser }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -115,9 +127,10 @@ export function useAuth(): AuthContextValue {
   return ctx;
 }
 
-/** Where a user should land after auth, based on their role. */
+/** Where a user should land after auth, based on their role. Clients land
+ *  straight in the AI chat intake; they can switch to other methods from there. */
 export function homePathForRole(role: User['role']): string {
   if (role === 'admin') return '/admin/dashboard';
   if (role === 'tech') return '/tech/dashboard';
-  return '/dashboard';
+  return '/dashboard/new/chat';
 }

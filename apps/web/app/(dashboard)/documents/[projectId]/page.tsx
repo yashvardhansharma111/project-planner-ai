@@ -144,7 +144,7 @@ export default function DocumentsPage({ params }: { params: { projectId: string 
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
+    <main className="mx-auto max-w-5xl px-6 py-10">
       <div className="no-print">
         <Link
           href="/dashboard"

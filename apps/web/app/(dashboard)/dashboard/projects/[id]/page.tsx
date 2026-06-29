@@ -14,8 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiDownload, apiFetch } from '@/lib/api';
 
 type Status = 'draft' | 'in_review' | 'approved' | 'locked' | 'archived';
@@ -54,6 +54,8 @@ function fmt(d?: string | null): string {
 
 export default function ProjectDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoOpenedRef = useRef(false);
   const [project, setProject] = useState<Project | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,21 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Arriving fresh from intake (?generate=1) → show the feature checklist so the
+  // user reviews the final feature list and is prompted to generate.
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    if (
+      project &&
+      searchParams.get('generate') === '1' &&
+      project.status !== 'locked' &&
+      docs.length === 0
+    ) {
+      setShowChecklist(true);
+      autoOpenedRef.current = true;
+    }
+  }, [project, docs, searchParams]);
 
   async function remove() {
     if (!confirm('Delete this project? This cannot be undone.')) return;
@@ -156,7 +173,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
   }
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="px-6 py-10 lg:px-8">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
@@ -221,7 +238,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
           </div>
 
           <div className="card mt-6 p-6">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm md:grid-cols-3 lg:grid-cols-4">
               <Field label="Industry" value={project.industry || '—'} />
               <Field label="Budget" value={project.budgetRange || '—'} />
               <Field label="Deadline" value={fmt(project.deadline)} />
@@ -289,7 +306,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
               {project.status !== 'locked' && (
                 <DeadlineSetter project={project} onSaved={updateDeadline} />
               )}
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {docs.map((d) => (
                 <div key={d.id} className="card flex items-center justify-between p-4">
                   <div>
@@ -466,22 +483,19 @@ function DeadlineSetter({
   project: Project;
   onSaved: (p: Project) => void;
 }) {
-  const [value, setValue] = useState(
-    project.deadline ? new Date(project.deadline).toISOString().slice(0, 10) : '',
-  );
+  const saved = project.deadline ? new Date(project.deadline).toISOString().slice(0, 10) : '';
+  const [value, setValue] = useState(saved);
   const [saving, setSaving] = useState(false);
-  const [ok, setOk] = useState(false);
+  const dirty = value !== saved; // only show the Save button when the date changed
 
   async function save() {
     setSaving(true);
-    setOk(false);
     try {
       const { project: updated } = await apiFetch<{ project: Project }>(`/projects/${project.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ deadline: value ? value : null }),
       });
       onSaved(updated);
-      setOk(true);
     } catch {
       /* surfaced via parent on next load */
     } finally {
@@ -499,16 +513,21 @@ function DeadlineSetter({
           type="date"
           className="input sm:max-w-xs"
           value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setOk(false);
-          }}
+          onChange={(e) => setValue(e.target.value)}
         />
-        <p className="mt-1 text-xs text-slate-400">Set a deadline before approving the documents.</p>
+        <p className="mt-1 text-xs text-slate-400">
+          {dirty
+            ? 'Set a deadline before approving the documents.'
+            : project.deadline
+              ? `Deadline set for ${fmt(project.deadline)}.`
+              : 'No deadline set yet.'}
+        </p>
       </div>
-      <button onClick={save} disabled={saving} className="btn-primary px-4 py-2 text-sm">
-        <Check className="h-4 w-4" /> {saving ? 'Saving…' : ok ? 'Saved' : 'Save deadline'}
-      </button>
+      {dirty && (
+        <button onClick={save} disabled={saving} className="btn-primary px-4 py-2 text-sm">
+          <Check className="h-4 w-4" /> {saving ? 'Saving…' : 'Save deadline'}
+        </button>
+      )}
     </div>
   );
 }
@@ -566,7 +585,7 @@ function EditForm({
   }
 
   return (
-    <form onSubmit={save} className="card animate-fade-up mt-4 space-y-4 p-6">
+    <form onSubmit={save} className="card animate-fade-up mt-4 max-w-3xl space-y-4 p-6">
       <h1 className="text-xl font-bold text-slate-900">Edit project</h1>
       <div>
         <label className="label">Name</label>

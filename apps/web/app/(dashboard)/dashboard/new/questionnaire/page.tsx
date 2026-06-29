@@ -152,19 +152,19 @@ export default function QuestionnairePage() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
+    <main className="px-6 py-12 lg:px-8">
       <Link
-        href="/dashboard/new"
+        href="/dashboard/new/chat"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
       >
-        <ArrowLeft className="h-4 w-4" /> Back
+        <ArrowLeft className="h-4 w-4" /> Back to chat
       </Link>
 
       <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900">Guided questionnaire</h1>
       <p className="mt-1 text-slate-600">A few quick sections — we’ll build a polished brief.</p>
 
       {/* Progress */}
-      <div className="mt-6">
+      <div className="mt-6 max-w-3xl">
         <div className="mb-2 flex justify-between text-xs font-medium text-slate-500">
           {STEPS.map((s, i) => (
             <span key={s} className={i <= step ? 'text-indigo-600' : ''}>
@@ -180,7 +180,7 @@ export default function QuestionnairePage() {
         </div>
       </div>
 
-      <div className="card animate-fade-up mt-6 space-y-5 p-6">
+      <div className="card animate-fade-up mt-6 max-w-3xl space-y-5 p-6">
         {/* Step 1 — basics */}
         {step === 0 && (
           <>

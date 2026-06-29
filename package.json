@@ -11,10 +11,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace apps/api",
-    "build": "npm run build --workspace apps/api",
-    "start": "npm run start --workspace apps/api",
-    "db:ping": "npm run db:ping --workspace apps/api",
+    "dev": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web",
+    "start": "npm run start --workspace apps/web",
+    "lint": "npm run lint --workspace apps/web",
     "type-check": "npm run type-check --workspaces --if-present"
   }
 }

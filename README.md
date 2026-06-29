@@ -1,63 +1,120 @@
-🚀 **AI Project-Roadmap Generator**
-An AI-powered platform that converts project requirements into professional PRD and TRD documents — via a free-form AI Chatbot or a structured Questionnaire.
+# 🚀 RoadmapAI — AI Project-Roadmap Generator
 
-**Tech Stack**
--> Frontend: Next.js 14, React 18, Tailwind CSS, Redux Toolkit, Socket.IO Client
--> Backend: Node.js + Express, TypeScript, MongoDB + Mongoose, Socket.IO
--> AI: Groq API (llama-3.3-70b-versatile) — free tier
--> Auth: Custom JWT (short-lived access token + HTTP-only refresh cookie, no OAuth)
+Turn project requirements into professional planning documents — **PRD, TRD, BRD, SRS, API Docs, and Database Schema** — through a free-form **AI chatbot**, a **guided questionnaire**, or a **quick form**. Built as a single **Next.js** app (frontend + API route handlers), deployable as one unit.
 
 ---
 
-## Backend (apps/api)
+## ✨ Features
 
-### Setup
+- **Three intake methods** — AI chat (streaming, live completeness meter + editable draft), a multi-step guided questionnaire (DB-driven, conditional questions, AI-enriched), and a quick form.
+- **6 document types** generated on demand via Groq — PRD, TRD, BRD, SRS, API Docs (with endpoint tables), DB Schema (with a Mermaid ERD).
+- **Pre-generation feature checklist** the client reviews/edits before generating.
+- **Guest mode** — visitors scope a project at `/` without an account, then sign in to generate (conversation is preserved and turned into a project).
+- **Auth** — email/password **and** Google sign-in (JWT access token + rotating HTTP-only refresh cookie).
+- **Roles** — `client`, `tech`, `admin`, each with a tailored experience.
+- **Project lifecycle** — draft → in_review → approved → **locked** (finalise & lock, enforced on the backend).
+- **Tech workspace** — approved projects, their documents, a task board, and milestones.
+- **Admin** — analytics (KPIs, revenue in INR, charts), Clients & Developers management (role change, suspend, delete), all projects, and a questionnaire-bank editor.
 
-1. `npm install` (from the repo root — this is an npm-workspaces monorepo).
-2. Copy `.env.example` to `.env` at the repo root and fill in values.
-   - `MONGODB_URI` — MongoDB connection string (Atlas `mongodb+srv://...` or local).
-   - `DNS_SERVERS` — comma-separated DNS servers (default `8.8.8.8,1.1.1.1`). The
-     API points Node's resolver at these before connecting, which fixes the
-     `querySrv ECONNREFUSED` SRV-lookup failure seen on some Windows/router setups.
-   - `JWT_SECRET` and `JWT_REFRESH_SECRET` — two **different** 64-char hex strings:
-     `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+## 🧱 Tech stack
 
-### Run
+- **App:** Next.js 14 (App Router) + React 18 + TypeScript + Tailwind CSS
+- **Backend:** Next.js **route handlers** (`app/api/**`) — no separate server
+- **Database:** MongoDB Atlas + Mongoose
+- **AI:** Groq API (`llama-3.3-70b-versatile`) — free tier
+- **Auth:** Custom JWT (access token + HTTP-only refresh cookie) + Google OAuth (ID-token flow)
+- **UI:** Lucide icons, Recharts (admin analytics), react-markdown (doc viewer)
 
-| Command | What it does |
-|---------|--------------|
-| `npm run dev` | Start the API with hot-reload (tsx watch) |
-| `npm run build` / `npm start` | Compile and run the production build |
-| `npm run db:ping --workspace apps/api` | Verify the MongoDB connection |
-| `npm run create:admin --workspace apps/api -- <email> <password> [name]` | Create/promote an admin user |
+## 📁 Structure (npm-workspaces monorepo, single app)
 
-### Data model (Mongoose)
+```
+project-planner-ai/
+└─ apps/
+   └─ web/
+      ├─ app/
+      │  ├─ (auth)/ (dashboard)/ (tech)/ (admin)/   route groups + guards
+      │  ├─ page.tsx                                guest chatbot landing
+      │  └─ api/                                    backend route handlers
+      │     ├─ auth/ projects/ documents/ ai/
+      │     ├─ public/ questions/ tech/ admin/
+      ├─ components/                                UI (app-shell, guest-chat, admin/…)
+      ├─ lib/                                       api client + auth context
+      └─ server/                                    backend core
+         ├─ db.ts env.ts jwt.ts auth.ts http.ts rateLimit.ts schemas.ts
+         ├─ models/        User, Project, AiDocument, Question, Task, Milestone
+         └─ services/      groq.service, ai.service, seed.service
+```
 
-Models live in `apps/api/src/models`: `User` (roles: client/admin/tech; password
-stored only as a bcrypt hash) and `Project` (owned by a user via `ownerId`,
-status enum: draft/in_review/approved/locked/archived).
+---
 
-### API endpoints
+## ⚙️ Setup
 
-| Method | Route | Auth |
-|--------|-------|------|
-| GET | `/api/health` | — |
-| POST | `/api/auth/register` | — |
-| POST | `/api/auth/login` | — |
-| POST | `/api/auth/refresh` | refresh cookie |
-| POST | `/api/auth/logout` | — |
-| GET | `/api/auth/me` | Bearer |
-| GET/POST | `/api/projects` | Bearer |
-| GET/PATCH/DELETE | `/api/projects/:id` | Bearer (owner-scoped) |
-| GET | `/api/admin/users` | Bearer + **admin** role |
-| GET | `/api/admin/projects` | Bearer + **admin** role |
+> npm-workspaces monorepo. Run everything from the repo root.
 
-**Roles:** users register as `client`. Create an `admin` with the `create:admin`
-script (admins can't be self-registered). The `requireRole('admin')` middleware
-gates everything under `/api/admin`; a non-admin token gets `403`.
+1. **Install**
+   ```bash
+   npm install
+   ```
 
-**Auth flow:** register/login return an access token (JSON body, ~15 min) and set
-an HTTP-only `refreshToken` cookie (~7 days). Send the access token as
-`Authorization: Bearer <token>` on protected routes. When it expires, call
-`POST /api/auth/refresh` (cookie sent automatically) to get a new one; the refresh
-cookie is rotated each time. `POST /api/auth/logout` clears the cookie.
+2. **Environment** — create `apps/web/.env.local`:
+   ```bash
+   # Public (browser)
+   NEXT_PUBLIC_API_URL=                       # blank → same-origin /api
+   NEXT_PUBLIC_GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
+
+   # Server-only
+   MONGODB_URI=<mongodb+srv://... or direct mongodb://... string>
+   JWT_SECRET=<64-char hex>
+   JWT_REFRESH_SECRET=<different 64-char hex>
+   GROQ_API_KEY=<gsk_...>                      # console.groq.com
+   GOOGLE_CLIENT_ID=<same as NEXT_PUBLIC_GOOGLE_CLIENT_ID>
+   SEED_DEMO=true                              # seed demo users + questionnaire (dev only)
+   ```
+   Generate a secret: `node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+
+3. **Run**
+   | Command | What it does |
+   |---|---|
+   | `npm run dev` | Start the app (frontend + API) with hot-reload |
+   | `npm run build` / `npm start` | Production build & serve |
+   | `npm run type-check` | TypeScript check |
+
+   Open the app on the printed port (e.g. `http://localhost:3001`).
+
+### Demo accounts (when `SEED_DEMO=true`)
+Seeded on first DB connect:
+- **Admin:** `admin@example.com` / `Admin@2026`
+- **Client:** `client@example.com` / `Demo12345`
+- **Tech:** `tech@example.com` / `Demo12345`
+
+---
+
+## 🔌 API (route handlers under `/api`)
+
+| Area | Examples |
+|---|---|
+| Auth | `POST /api/auth/{register,login,google,refresh,logout}` · `GET/PATCH /api/auth/me` · `/api/auth/me/{password,theme}` |
+| Projects | `GET/POST /api/projects` · `GET/PATCH/DELETE /api/projects/:id` · `POST /api/projects/:id/finalize` |
+| Documents | `GET /api/documents` · `GET/PATCH /api/documents/:id` · `/api/documents/:id/approve` · `/api/documents/:projectId/:docType/download` |
+| AI | `POST /api/ai/{generate,checklist}/:projectId` · `/api/ai/chat`, `/chat/stream`, `/chat/extract`, `/enrich` |
+| Guest | `POST /api/public/chat` (no auth, rate-limited) |
+| Questions | `GET /api/questions` |
+| Tech | `/api/tech/projects`, `/tech/projects/:id`, tasks & milestones |
+| Admin | `/api/admin/{stats,users,projects,questions}` (+ role/status/delete) — `admin` role |
+
+**Auth flow:** login/register/google return an access token (JSON, ~15 min) + set an HTTP-only `refreshToken` cookie (~7 days). Send `Authorization: Bearer <token>` on protected routes; on expiry the client calls `POST /api/auth/refresh` (cookie rotated). Role guards (`requireRole`) gate `/api/admin` and `/api/tech`.
+
+---
+
+## ☁️ Deploy (Vercel — single app)
+
+1. Import the repo on Vercel; set **Root Directory** to `apps/web`.
+2. Add the env vars from above in the Vercel dashboard (use the `mongodb+srv://` URI — Vercel resolves SRV fine).
+3. Deploy. The frontend and all `/api` routes ship together.
+
+> AI generation can take several seconds; route handlers set `maxDuration`. The full duration needs a Vercel plan that allows longer function execution.
+
+## 📝 Notes
+
+- **`querySrv ECONNREFUSED` locally?** Some networks block SRV lookups. Either keep the `DNS_SERVERS` override (default `8.8.8.8,1.1.1.1`) or use the **direct (non-SRV)** `mongodb://host1,host2,host3/...?replicaSet=...&ssl=true` connection string from Atlas.
+- Secrets live only in `apps/web/.env.local` (gitignored) / the Vercel dashboard — never commit them.

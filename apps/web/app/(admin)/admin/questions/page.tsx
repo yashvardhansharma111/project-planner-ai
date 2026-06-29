@@ -81,7 +81,7 @@ export default function AdminQuestionsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl animate-fade-up px-6 py-10">
+    <main className="animate-fade-up px-6 py-10 lg:px-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">Questionnaire</h1>

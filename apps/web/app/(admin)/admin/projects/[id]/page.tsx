@@ -1,7 +1,8 @@
 'use client';
 
-import { ArrowLeft, Download, Eye } from 'lucide-react';
+import { ArrowLeft, Download, Eye, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { apiDownload, apiFetch } from '@/lib/api';
 
@@ -36,10 +37,12 @@ function fmt(d?: string | null): string {
 }
 
 export default function AdminProjectDetailPage({ params }: { params: { id: string } }) {
+  const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,10 +85,25 @@ export default function AdminProjectDetailPage({ params }: { params: { id: strin
     }
   }
 
+  async function remove() {
+    if (!project) return;
+    if (!confirm(`Delete "${project.name}"? This removes its documents, tasks, and milestones — and cannot be undone.`))
+      return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await apiFetch(`/admin/projects/${project.id}`, { method: 'DELETE' });
+      router.push('/admin/projects');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+      setDeleting(false);
+    }
+  }
+
   const owner = project && typeof project.ownerId === 'object' ? project.ownerId : null;
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-10">
+    <main className="px-6 py-10 lg:px-8">
       <Link
         href="/admin/projects"
         className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
@@ -105,22 +123,31 @@ export default function AdminProjectDetailPage({ params }: { params: { id: strin
         <div className="animate-fade-up mt-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-bold tracking-tight text-slate-900">{project.name}</h1>
-            <select
-              value={project.status}
-              onChange={(e) => changeStatus(e.target.value as Status)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s.replace('_', ' ')}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-2">
+              <select
+                value={project.status}
+                onChange={(e) => changeStatus(e.target.value as Status)}
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700"
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.replace('_', ' ')}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={remove}
+                disabled={deleting}
+                className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
+              >
+                <Trash2 className="h-4 w-4" /> {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
           </div>
 
           {/* Details */}
           <div className="card mt-6 p-6">
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm md:grid-cols-3 lg:grid-cols-5">
               <Field label="Owner" value={owner ? `${owner.fullName} · ${owner.email}` : '—'} />
               <Field label="Industry" value={project.industry || '—'} />
               <Field label="Budget" value={project.budgetRange || '—'} />
@@ -140,7 +167,7 @@ export default function AdminProjectDetailPage({ params }: { params: { id: strin
           {docs.length === 0 ? (
             <div className="card mt-3 p-6 text-sm text-slate-500">No documents generated yet.</div>
           ) : (
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {docs.map((d) => (
                 <div key={d.id} className="card flex items-center justify-between p-4">
                   <div>

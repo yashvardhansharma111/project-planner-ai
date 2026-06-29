@@ -1,20 +1,13 @@
 'use client';
 
-import { ArrowLeft, Check, Send, Sparkles, X } from 'lucide-react';
+import { ArrowLeft, ListChecks, MessageSquare, Send, Sparkles, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { apiFetch, apiStream } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
-
-interface Draft {
-  name: string;
-  industry: string;
-  description: string;
-  budgetRange: string;
-  completeness: number;
-}
 
 const GREETING: Turn = {
   role: 'assistant',
@@ -22,51 +15,42 @@ const GREETING: Turn = {
     "Hi! I'll help you scope your project. To start — what do you want to build, and who is it for?",
 };
 
-// Quick replies to speed up common answers (shown early in the conversation).
+// Quick replies to speed up common answers (one nudges the tech-stack question).
 const CHIPS = [
   "It's a mobile app",
   "It's a web app",
-  'For businesses (B2B)',
   'For consumers (B2C)',
+  'We prefer React & Node.js',
+  'No tech-stack preference',
   'Budget around ₹20L',
-  'MVP in 3 months',
 ];
 
-const READY_AT = 85; // completeness % at which we nudge "Create project"
+function initials(name?: string): string {
+  if (!name) return 'You';
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 export default function ChatIntakePage() {
+  const { user } = useAuth();
   const router = useRouter();
   const [messages, setMessages] = useState<Turn[]>([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [extracting, setExtracting] = useState(false);
-  const [showDraft, setShowDraft] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, sending, streamingText]);
+  }, [messages, sending]);
 
   const hasUserTurn = messages.some((m) => m.role === 'user');
-
-  /** Background extract — keeps the live requirements panel + meter fresh. */
-  async function refreshDraft(history: Turn[]) {
-    setExtracting(true);
-    try {
-      const { project } = await apiFetch<{ project: Draft }>('/ai/chat/extract', {
-        method: 'POST',
-        body: JSON.stringify({ messages: history }),
-      });
-      setDraft(project);
-    } catch {
-      /* non-critical */
-    } finally {
-      setExtracting(false);
-    }
-  }
 
   async function send(textArg?: string) {
     const text = (textArg ?? input).trim();
@@ -75,300 +59,205 @@ export default function ChatIntakePage() {
     setMessages(next);
     setInput('');
     setSending(true);
-    setStreamingText('');
     setError(null);
-
-    let acc = '';
     try {
-      try {
-        // Preferred path: stream the reply token-by-token.
-        await apiStream('/ai/chat/stream', { messages: next }, (chunk) => {
-          acc += chunk;
-          setStreamingText(acc);
-        });
-        if (!acc) throw new Error('empty stream');
-      } catch {
-        // Fallback: non-streaming reply (e.g. proxy buffering / older browser).
-        const { reply } = await apiFetch<{ reply: string }>('/ai/chat', {
-          method: 'POST',
-          body: JSON.stringify({ messages: next }),
-        });
-        acc = reply;
-      }
-      const finalMsgs: Turn[] = [...next, { role: 'assistant', content: acc }];
-      setMessages(finalMsgs);
-      void refreshDraft(finalMsgs);
+      const { reply } = await apiFetch<{ reply: string }>('/ai/chat', {
+        method: 'POST',
+        body: JSON.stringify({ messages: next }),
+      });
+      setMessages((m) => [...m, { role: 'assistant', content: reply }]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Chat failed');
     } finally {
-      setStreamingText('');
       setSending(false);
     }
   }
 
-  async function openCreate() {
+  async function createProject() {
+    setCreating(true);
     setError(null);
-    if (!draft) await refreshDraft(messages);
-    setShowDraft(true);
+    try {
+      const { project } = await apiFetch<{
+        project: { name: string; industry: string; description: string; budgetRange: string };
+      }>('/ai/chat/extract', {
+        method: 'POST',
+        body: JSON.stringify({ messages }),
+      });
+      const { project: created } = await apiFetch<{ project: { id: string } }>('/projects', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: project.name,
+          industry: project.industry || undefined,
+          description: project.description || undefined,
+          budgetRange: project.budgetRange || undefined,
+        }),
+      });
+      router.push(`/dashboard/projects/${created.id}?generate=1`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not create project');
+      setCreating(false);
+    }
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-6">
-      <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/dashboard/new"
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </Link>
-        <button
-          onClick={openCreate}
-          disabled={!hasUserTurn || sending}
-          className={`btn-primary px-4 py-2 text-sm ${
-            draft && draft.completeness >= READY_AT ? 'animate-pulse' : ''
-          }`}
-        >
-          <Sparkles className="h-4 w-4" /> Create project
-        </button>
-      </div>
-
-      <h1 className="mt-3 text-xl font-bold tracking-tight text-slate-900">Chat with AI</h1>
-
-      <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_300px]">
-        {/* Conversation column */}
-        <div className="flex h-[calc(100vh-220px)] min-h-[420px] flex-col">
-          <div className="card flex-1 space-y-4 overflow-y-auto p-4">
-            {messages.map((m, i) => (
-              <Bubble key={i} role={m.role} content={m.content} />
-            ))}
-            {sending && <Bubble role="assistant" content={streamingText} typing={!streamingText} />}
-            <div ref={endRef} />
+    <main className="flex h-[calc(100vh-3.5rem)] flex-col bg-slate-50">
+      {/* Header */}
+      <header className="border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur lg:px-8">
+        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900"
+            >
+              <ArrowLeft className="h-4 w-4" /> My Projects
+            </Link>
+            <span className="hidden text-slate-300 sm:inline">|</span>
+            <h1 className="hidden items-center gap-2 text-sm font-semibold text-slate-900 sm:flex">
+              <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+                <Sparkles className="h-3.5 w-3.5" />
+              </span>
+              AI Project Assistant
+            </h1>
           </div>
+          <button
+            onClick={createProject}
+            disabled={!hasUserTurn || creating || sending}
+            className="btn-primary px-4 py-2 text-sm"
+          >
+            <Sparkles className="h-4 w-4" />
+            {creating ? 'Creating…' : 'Create project'}
+          </button>
+        </div>
 
-          {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {/* Intake method switcher */}
+        <div className="mx-auto mt-3 flex max-w-3xl flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">
+            <MessageSquare className="h-4 w-4" /> Chat with AI
+          </span>
+          <Link
+            href="/dashboard/new/questionnaire"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <ListChecks className="h-4 w-4" /> Guided questionnaire
+          </Link>
+          <Link
+            href="/dashboard/new/manual"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
+          >
+            <Zap className="h-4 w-4" /> Quick form
+          </Link>
+        </div>
+      </header>
 
-          {/* Suggestion chips (early in the chat) */}
-          {messages.length <= 3 && !sending && (
-            <div className="mt-3 flex flex-wrap gap-2">
+      {/* Conversation */}
+      <div className="flex-1 overflow-y-auto px-4 lg:px-8">
+        <div className="mx-auto max-w-3xl space-y-5 py-6">
+          {messages.map((m, i) => (
+            <Message key={i} role={m.role} content={m.content} userName={user?.fullName} />
+          ))}
+          {sending && <Typing />}
+
+          {/* First-run suggestion chips */}
+          {!hasUserTurn && (
+            <div className="flex flex-wrap gap-2 pl-11">
               {CHIPS.map((c) => (
                 <button
                   key={c}
                   onClick={() => void send(c)}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:text-indigo-700"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-700"
                 >
                   {c}
                 </button>
               ))}
             </div>
           )}
+          <div ref={endRef} />
+        </div>
+      </div>
 
+      {/* Composer */}
+      <div className="border-t border-slate-200 bg-white px-4 py-3 lg:px-8">
+        <div className="mx-auto max-w-3xl">
+          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
           <form
             onSubmit={(e) => {
               e.preventDefault();
               void send();
             }}
-            className="mt-3 flex items-center gap-2"
+            className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20"
           >
             <input
-              className="input"
-              placeholder="Type your message…"
+              className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
+              placeholder="Message the assistant…"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               autoFocus
             />
-            <button type="submit" className="btn-primary px-4 py-2.5" disabled={sending || !input.trim()}>
+            <button
+              type="submit"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+              disabled={sending || !input.trim()}
+              aria-label="Send"
+            >
               <Send className="h-4 w-4" />
             </button>
           </form>
+          <p className="mt-2 text-center text-xs text-slate-400">
+            The assistant will ask about your goal, users, features, and preferred tech stack.
+          </p>
         </div>
-
-        {/* Live requirements panel */}
-        <RequirementsPanel draft={draft} extracting={extracting} onCreate={openCreate} />
       </div>
-
-      {showDraft && draft && (
-        <DraftModal
-          draft={draft}
-          onClose={() => setShowDraft(false)}
-          onError={setError}
-          onCreated={(id) => router.push(`/dashboard/projects/${id}`)}
-        />
-      )}
     </main>
   );
 }
 
-function Bubble({
+function Message({
   role,
   content,
-  typing,
+  userName,
 }: {
   role: 'user' | 'assistant';
   content: string;
-  typing?: boolean;
+  userName?: string;
 }) {
+  const isUser = role === 'user';
   return (
-    <div className={`flex ${role === 'user' ? 'justify-end' : 'justify-start'}`}>
+    <div className={`animate-fade-up flex items-start gap-3 ${isUser ? 'flex-row-reverse' : ''}`}>
+      {/* Avatar */}
+      {isUser ? (
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-200 text-xs font-semibold text-slate-600">
+          {initials(userName)}
+        </span>
+      ) : (
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+          <Sparkles className="h-4 w-4" />
+        </span>
+      )}
+      {/* Bubble */}
       <div
-        className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-          role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-800'
+        className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
+          isUser
+            ? 'rounded-tr-sm bg-indigo-600 text-white'
+            : 'rounded-tl-sm border border-slate-200 bg-white text-slate-800'
         }`}
       >
-        {typing ? <span className="text-slate-400">Thinking…</span> : content}
+        {content}
       </div>
     </div>
   );
 }
 
-function RequirementsPanel({
-  draft,
-  extracting,
-  onCreate,
-}: {
-  draft: Draft | null;
-  extracting: boolean;
-  onCreate: () => void;
-}) {
-  const pct = draft?.completeness ?? 0;
-  const ready = pct >= READY_AT;
-
+function Typing() {
   return (
-    <aside className="card h-fit p-4 lg:sticky lg:top-20">
-      <h2 className="text-sm font-semibold text-slate-900">What I understand so far</h2>
-
-      <div className="mt-3">
-        <div className="mb-1 flex items-center justify-between text-xs">
-          <span className="text-slate-500">Requirements</span>
-          <span className={`font-semibold ${ready ? 'text-emerald-600' : 'text-slate-700'}`}>
-            {pct}%
-          </span>
-        </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              ready ? 'bg-emerald-500' : 'bg-indigo-500'
-            }`}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+    <div className="flex items-start gap-3">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-white">
+        <Sparkles className="h-4 w-4" />
+      </span>
+      <div className="flex items-center gap-1 rounded-2xl rounded-tl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.3s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300 [animation-delay:-0.15s]" />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-slate-300" />
       </div>
-
-      <dl className="mt-4 space-y-3 text-sm">
-        <PanelField label="Name" value={draft?.name} />
-        <PanelField label="Industry" value={draft?.industry} />
-        <PanelField label="Budget" value={draft?.budgetRange} />
-      </dl>
-      {draft?.description && (
-        <p className="mt-3 line-clamp-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
-          {draft.description}
-        </p>
-      )}
-
-      {extracting && <p className="mt-3 text-xs text-slate-400">Updating…</p>}
-
-      {ready && (
-        <button onClick={onCreate} className="btn-primary mt-4 w-full justify-center px-3 py-2 text-sm">
-          <Sparkles className="h-4 w-4" /> Looks ready — create
-        </button>
-      )}
-    </aside>
-  );
-}
-
-function PanelField({ label, value }: { label: string; value?: string }) {
-  return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-400">{label}</dt>
-      <dd className={value ? 'text-slate-800' : 'text-slate-400'}>{value || '—'}</dd>
-    </div>
-  );
-}
-
-/** Editable confirmation of the extracted draft before the project is created. */
-function DraftModal({
-  draft,
-  onClose,
-  onError,
-  onCreated,
-}: {
-  draft: Draft;
-  onClose: () => void;
-  onError: (m: string) => void;
-  onCreated: (id: string) => void;
-}) {
-  const [name, setName] = useState(draft.name);
-  const [industry, setIndustry] = useState(draft.industry);
-  const [budgetRange, setBudgetRange] = useState(draft.budgetRange);
-  const [description, setDescription] = useState(draft.description);
-  const [saving, setSaving] = useState(false);
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const { project } = await apiFetch<{ project: { id: string } }>('/projects', {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          industry: industry || undefined,
-          description: description || undefined,
-          budgetRange: budgetRange || undefined,
-        }),
-      });
-      onCreated(project.id);
-    } catch (err) {
-      onError(err instanceof Error ? err.message : 'Could not create project');
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
-      <form onSubmit={create} className="card w-full max-w-lg p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Review project draft</h2>
-            <p className="mt-0.5 text-sm text-slate-500">Tweak anything before we create it.</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="mt-4 space-y-4">
-          <div>
-            <label className="label">Project name</label>
-            <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="label">Industry</label>
-              <input className="input" value={industry} onChange={(e) => setIndustry(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Budget</label>
-              <input className="input" value={budgetRange} onChange={(e) => setBudgetRange(e.target.value)} />
-            </div>
-          </div>
-          <div>
-            <label className="label">Description</label>
-            <textarea
-              className="input min-h-[140px] resize-y"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center gap-2">
-          <button type="submit" className="btn-primary px-4 py-2 text-sm" disabled={saving}>
-            <Check className="h-4 w-4" /> {saving ? 'Creating…' : 'Create project'}
-          </button>
-          <button type="button" onClick={onClose} className="btn-ghost px-4 py-2 text-sm">
-            Cancel
-          </button>
-        </div>
-      </form>
     </div>
   );
 }
