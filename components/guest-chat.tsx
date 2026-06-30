@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { homePathForRole, useAuth } from '@/lib/auth';
 import { Brand } from './brand';
+import { MicButton, VoiceWave } from './mic-button';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
 
@@ -37,6 +38,7 @@ export function GuestChat() {
   const [messages, setMessages] = useState<Turn[]>([GREETING]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAuth, setShowAuth] = useState(false);
   // 'generate' → build the project from the chat after auth; 'login' → just sign in.
@@ -189,15 +191,26 @@ export function GuestChat() {
                     e.preventDefault();
                     void send();
                   }}
-                  className="flex flex-1 items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 shadow-sm focus-within:border-slate-400 focus-within:shadow-md"
+                  className="relative flex flex-1 items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-1.5 shadow-sm focus-within:border-slate-400 focus-within:shadow-md"
                 >
                   <input
                     className="flex-1 bg-transparent px-2 py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400 disabled:opacity-50"
-                    placeholder={limitReached ? 'Sign in to continue…' : 'Message the assistant…'}
+                    placeholder={
+                      recording ? '' : limitReached ? 'Sign in to continue…' : 'Message the assistant…'
+                    }
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     disabled={limitReached}
                     autoFocus
+                  />
+                  {recording && (
+                    <VoiceWave className="pointer-events-none absolute inset-y-0 left-5 z-10" />
+                  )}
+                  <MicButton
+                    onTranscript={(t) => setInput((cur) => (cur ? cur.trim() + ' ' : '') + t)}
+                    onError={setError}
+                    onRecordingChange={setRecording}
+                    disabled={limitReached}
                   />
                   <button
                     type="submit"
@@ -239,14 +252,22 @@ export function GuestChat() {
             }}
             className="w-full max-w-2xl"
           >
-            <div className="flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 shadow-sm transition-shadow focus-within:border-slate-400 focus-within:shadow-md">
+            <div className="relative flex items-center gap-2 rounded-full border border-slate-300 bg-white px-3 py-2 shadow-sm transition-shadow focus-within:border-slate-400 focus-within:shadow-md">
               <Plus className="ml-1 h-5 w-5 shrink-0 text-slate-400" />
               <input
                 className="flex-1 bg-transparent px-1 py-2 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
-                placeholder="Describe the app or product you want to build…"
+                placeholder={recording ? '' : 'Describe the app or product you want to build…'}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 autoFocus
+              />
+              {recording && (
+                <VoiceWave className="pointer-events-none absolute inset-y-0 left-10 z-10" />
+              )}
+              <MicButton
+                onTranscript={(t) => setInput((cur) => (cur ? cur.trim() + ' ' : '') + t)}
+                onError={setError}
+                onRecordingChange={setRecording}
               />
               <button
                 type="submit"

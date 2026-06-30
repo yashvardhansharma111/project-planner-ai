@@ -104,15 +104,15 @@ export default function TechDashboardPage() {
   }, [selectedId, loadDetail]);
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <h1 className="text-3xl font-bold tracking-tight text-slate-900">Tech workspace</h1>
+    <main className="px-6 py-8 lg:px-10">
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Tech workspace</h1>
       <p className="mt-1 text-slate-600">Approved projects, their documents, tasks and milestones.</p>
 
       {error && (
         <div className="card mt-4 border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[300px_1fr]">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr] xl:grid-cols-[360px_1fr]">
         {/* Project list */}
         <aside className="space-y-2">
           {loading ? (

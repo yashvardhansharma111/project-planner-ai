@@ -19,6 +19,8 @@ export const env = {
   GROQ_API_KEY: process.env.GROQ_API_KEY,
   GROQ_MODEL: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile',
   GROQ_MAX_TOKENS: Number(process.env.GROQ_MAX_TOKENS ?? 4096),
+  // Whisper model used for voice-to-text transcription.
+  GROQ_STT_MODEL: process.env.GROQ_STT_MODEL ?? 'whisper-large-v3-turbo',
 
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
 

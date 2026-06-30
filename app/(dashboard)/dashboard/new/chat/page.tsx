@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { MicButton, VoiceWave } from '@/components/mic-button';
 
 type Turn = { role: 'user' | 'assistant'; content: string };
 
@@ -43,6 +44,7 @@ export default function ChatIntakePage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -99,11 +101,48 @@ export default function ChatIntakePage() {
     }
   }
 
+  // Shared composer — centered in the empty state, pinned to the bottom once
+  // a conversation is underway.
+  const composer = (
+    <div className="w-full">
+      {error && <p className="mb-2 text-center text-sm text-red-600">{error}</p>}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          void send();
+        }}
+        className="relative flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2.5 py-2 shadow-sm transition-all focus-within:border-indigo-400 focus-within:shadow-md focus-within:ring-4 focus-within:ring-indigo-500/10"
+      >
+        <input
+          className="flex-1 bg-transparent px-2 py-1.5 text-[15px] text-slate-900 outline-none placeholder:text-slate-400"
+          placeholder={recording ? '' : 'Message the assistant…'}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          autoFocus
+        />
+        {recording && <VoiceWave className="pointer-events-none absolute inset-y-0 left-4 z-10" />}
+        <MicButton
+          onTranscript={(t) => setInput((cur) => (cur ? cur.trim() + ' ' : '') + t)}
+          onError={setError}
+          onRecordingChange={setRecording}
+        />
+        <button
+          type="submit"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
+          disabled={sending || !input.trim()}
+          aria-label="Send"
+        >
+          <Send className="h-4 w-4" />
+        </button>
+      </form>
+    </div>
+  );
+
   return (
     <main className="flex h-[calc(100vh-3.5rem)] flex-col bg-slate-50">
       {/* Header */}
       <header className="border-b border-slate-200 bg-white/80 px-4 py-3 backdrop-blur lg:px-8">
-        <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
@@ -130,7 +169,7 @@ export default function ChatIntakePage() {
         </div>
 
         {/* Intake method switcher */}
-        <div className="mx-auto mt-3 flex max-w-3xl flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
+        <div className="mt-3 inline-flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
           <span className="inline-flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white">
             <MessageSquare className="h-4 w-4" /> Chat with AI
           </span>
@@ -149,73 +188,60 @@ export default function ChatIntakePage() {
         </div>
       </header>
 
-      {/* Conversation */}
-      <div className="flex-1 overflow-y-auto px-4 lg:px-8">
-        {hasUserTurn ? (
-          <div className="mx-auto max-w-3xl space-y-5 py-6">
-            {messages.map((m, i) => (
-              <Message key={i} role={m.role} content={m.content} userName={user?.fullName} />
-            ))}
-            {sending && <Typing />}
-            <div ref={endRef} />
+      {hasUserTurn ? (
+        /* ── Active conversation: scrolling transcript + bottom composer ── */
+        <>
+          <div className="flex-1 overflow-y-auto px-4 lg:px-8">
+            <div className="mx-auto max-w-3xl space-y-6 py-6">
+              {messages.map((m, i) => (
+                <Message key={i} role={m.role} content={m.content} userName={user?.fullName} />
+              ))}
+              {sending && <Typing />}
+              <div ref={endRef} />
+            </div>
           </div>
-        ) : (
-          /* Empty state — a centered welcome so the space feels intentional. */
-          <div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center py-10 text-center">
-            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-md">
-              <Sparkles className="h-8 w-8" />
-            </span>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
-              Let&apos;s scope your project
-            </h2>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">{GREETING.content}</p>
-            <div className="mt-7 flex flex-wrap justify-center gap-2">
+
+          <div className="border-t border-slate-200 bg-white/70 px-4 py-3 backdrop-blur lg:px-8">
+            <div className="mx-auto max-w-3xl">
+              {composer}
+              <p className="mt-2 text-center text-xs text-slate-400">
+                The assistant will ask about your goal, users, features, and preferred tech stack.
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* ── Empty state: hero + composer centered so it fills the screen ── */
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-8">
+          <div className="w-full max-w-2xl">
+            <div className="text-center">
+              <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-500/20">
+                <Sparkles className="h-7 w-7" />
+              </span>
+              <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                Let&apos;s scope your project
+              </h2>
+              <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+                {GREETING.content}
+              </p>
+            </div>
+
+            <div className="mt-7">{composer}</div>
+
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
               {CHIPS.map((c) => (
                 <button
                   key={c}
                   onClick={() => void send(c)}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-indigo-300 hover:text-indigo-700"
+                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-600 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
                 >
                   {c}
                 </button>
               ))}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Composer */}
-      <div className="border-t border-slate-200 bg-white px-4 py-3 lg:px-8">
-        <div className="mx-auto max-w-3xl">
-          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send();
-            }}
-            className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-1.5 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20"
-          >
-            <input
-              className="flex-1 bg-transparent px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400"
-              placeholder="Message the assistant…"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              autoFocus
-            />
-            <button
-              type="submit"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:opacity-40"
-              disabled={sending || !input.trim()}
-              aria-label="Send"
-            >
-              <Send className="h-4 w-4" />
-            </button>
-          </form>
-          <p className="mt-2 text-center text-xs text-slate-400">
-            The assistant will ask about your goal, users, features, and preferred tech stack.
-          </p>
         </div>
-      </div>
+      )}
     </main>
   );
 }

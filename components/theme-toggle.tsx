@@ -7,8 +7,8 @@ import { useAuth, type User } from '@/lib/auth';
 
 /**
  * Light/dark preference toggle. The preference is persisted server-side
- * (PATCH /auth/me/theme); actual dark rendering isn't wired up yet — this just
- * places the control and saves the choice.
+ * (PATCH /auth/me/theme) and applied to <html> by AuthProvider, which drives the
+ * `.dark` styles in globals.css.
  */
 export function ThemeToggle() {
   const { user, updateUser } = useAuth();

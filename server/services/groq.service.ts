@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk';
+import Groq, { toFile } from 'groq-sdk';
 import { env } from '../env';
 import { ApiError } from '../http';
 
@@ -53,6 +53,22 @@ export async function* chatCompletionStream(
     const delta = chunk.choices[0]?.delta?.content;
     if (delta) yield delta;
   }
+}
+
+/**
+ * Transcribe a recorded audio clip to text via Groq's Whisper model.
+ * Cross-browser voice-to-text — the audio is captured in the browser and sent
+ * here, so it doesn't depend on the browser's own speech service.
+ */
+export async function transcribeAudio(file: File): Promise<string> {
+  const upload = await toFile(file, file.name || 'audio.webm', {
+    type: file.type || 'audio/webm',
+  });
+  const res = await getClient().audio.transcriptions.create({
+    file: upload,
+    model: env.GROQ_STT_MODEL,
+  });
+  return (res.text ?? '').trim();
 }
 
 export { ApiError };

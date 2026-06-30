@@ -70,6 +70,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Reflect the user's saved theme on <html> (and cache it for the no-flash
+  // script in the root layout). Logged-out visitors fall back to light.
+  useEffect(() => {
+    const dark = user?.theme === 'dark';
+    document.documentElement.classList.toggle('dark', dark);
+    try {
+      localStorage.setItem('theme', dark ? 'dark' : 'light');
+    } catch {
+      /* ignore */
+    }
+  }, [user?.theme]);
+
   const login = useCallback(async (email: string, password: string) => {
     const data = await apiFetch<AuthResponse>('/auth/login', {
       method: 'POST',
